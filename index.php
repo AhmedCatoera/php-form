@@ -1,4 +1,21 @@
 <?php
+// Start session and initialize storage for incidents
+session_start();
+if (!isset($_SESSION['incidents'])) {
+    $_SESSION['incidents'] = [];
+}
+
+// Handle clear action (clears session and cookies)
+if (isset($_GET['action']) && $_GET['action'] === 'clear') {
+    $_SESSION = [];
+    session_unset();
+    session_destroy();
+    setcookie('last_incident', '', time() - 3600, '/');
+    setcookie('last_location', '', time() - 3600, '/');
+    header('Location: index.php');
+    exit;
+}
+
 // Initialize variables
 $incidentType = $location = $description = $severity = "";
 $errors = [];
@@ -38,11 +55,26 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     // If no errors, display success message
     if (empty($errors)) {
+        // store incident in session
+        $incident = [
+            'type' => $incidentType,
+            'location' => $location,
+            'description' => $description,
+            'severity' => $severity,
+            'submitted_at' => date('Y-m-d H:i:s')
+        ];
+        $_SESSION['incidents'][] = $incident;
+
+        // set cookies for last incident and location (7 days)
+        setcookie('last_incident', $incidentType, time() + 7 * 24 * 60 * 60, '/');
+        setcookie('last_location', $location, time() + 7 * 24 * 60 * 60, '/');
+
         echo "<h3>Incident Report Submitted Successfully!</h3>";
         echo "Incident Type: $incidentType <br>";
         echo "Location: $location <br>";
         echo "Description: $description <br>";
         echo "Severity Level: $severity <br>";
+        echo '<p><a href="reports.php">View all stored incidents (session)</a></p>';
     }
 }
 ?>
@@ -51,22 +83,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <html>
 <head>
     <title>Incident Report Form</title>
-    <style>
-        .error { color: red; }
-    </style>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+<div class="container">
 
 <h2>Incident Report Form (POST Method)</h2>
 
 <form method="POST" action="">
     <label>Incident Type:</label><br>
-    <input type="text" name="incidentType" value="<?php echo $incidentType; ?>">
+    <input type="text" name="incidentType" value="<?php echo $incidentType ?: ($_COOKIE['last_incident'] ?? ''); ?>">
     <span class="error"><?php echo $errors['incidentType'] ?? ''; ?></span>
     <br><br>
 
     <label>Location:</label><br>
-    <input type="text" name="location" value="<?php echo $location; ?>">
+    <input type="text" name="location" value="<?php echo $location ?: ($_COOKIE['last_location'] ?? ''); ?>">
     <span class="error"><?php echo $errors['location'] ?? ''; ?></span>
     <br><br>
 
@@ -85,8 +116,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <span class="error"><?php echo $errors['severity'] ?? ''; ?></span>
     <br><br>
 
-    <input type="submit" value="Submit">
+    <input type="submit" value="Submit" class="btn">
 </form>
+
+<p>
+    <a href="reports.php">View stored incidents (session)</a> |
+    <a href="?action=clear" onclick="return confirm('Clear all stored incidents and cookies?');">Clear session & cookies</a>
+</p>
 
 <hr>
 
@@ -104,5 +140,6 @@ if ($_SERVER["REQUEST_METHOD"] == "GET" && isset($_GET['testIncident'])) {
 }
 ?>
 
+</div> <!-- .container -->
 </body>
 </html>
